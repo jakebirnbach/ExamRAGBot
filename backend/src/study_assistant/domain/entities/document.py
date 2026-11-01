@@ -18,10 +18,18 @@ class Document:
     """A parsed course-material file."""
 
     source: str
-    """File name relative to the raw-data directory, e.g. ``lecture-03-nutrition.pdf``."""
+    """Path relative to the raw-data directory, e.g. ``Module 3 .../M3 L1 ....pdf``."""
     pages: tuple[Page, ...]
+    title: str = ""
+    """Human-readable title (usually the file stem); prepended to chunks as context."""
     topic: str | None = None
-    """Lecture/topic label, when it can be derived from the file name or folder."""
+    """Topic label used for filtering, e.g. ``M3 · Health Behavior Change Theory``."""
+    module: str | None = None
+    """Course module, e.g. ``M3``."""
+    lesson: str | None = None
+    """Lesson within the module, e.g. ``L1``."""
+    checksum: str = ""
+    """Content hash of the source file; used to skip exact duplicates."""
 
     def __post_init__(self) -> None:
         if not self.source:

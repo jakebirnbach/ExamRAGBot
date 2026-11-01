@@ -9,6 +9,10 @@ class VectorStore(Protocol):
         """Insert or overwrite chunks by id."""
         ...
 
+    def delete_source(self, source: str) -> int:
+        """Remove every chunk of one source file; returns how many were removed."""
+        ...
+
     def search(
         self,
         query: Embedding,

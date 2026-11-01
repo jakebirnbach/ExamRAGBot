@@ -24,10 +24,18 @@ class InMemoryVectorStore:
     def __init__(self, alpha: float = 0.5) -> None:
         self._alpha = alpha
         self.items: dict[str, EmbeddedChunk] = {}
+        self.deleted_sources: list[str] = []
 
     def upsert(self, items: Sequence[EmbeddedChunk]) -> None:
         for item in items:
             self.items[item.chunk.id] = item
+
+    def delete_source(self, source: str) -> int:
+        doomed = [cid for cid, item in self.items.items() if item.chunk.metadata.source == source]
+        for cid in doomed:
+            del self.items[cid]
+        self.deleted_sources.append(source)
+        return len(doomed)
 
     def search(
         self,

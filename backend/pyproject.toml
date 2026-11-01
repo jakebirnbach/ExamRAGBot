@@ -5,10 +5,17 @@ description = "RAG study assistant over private course materials"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.162.0",
+    "flagembedding>=1.4.2",
+    "pinecone>=10.2.0",
     "pydantic>=2.14.2",
     "pydantic-settings>=2.16.2",
+    "pymupdf>=2.0",
+    "torch>=2.15",
     "typer>=0.27.3",
 ]
+
+[project.scripts]
+study-assistant = "study_assistant.main:cli"
 
 [build-system]
 requires = ["uv_build>=0.11.16,<0.12.0"]
@@ -27,6 +34,7 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra --strict-markers"
+filterwarnings = ["ignore:builtin type .* has no __module__ attribute:DeprecationWarning"]
 markers = [
     "integration: talks to real external services; skipped without credentials",
 ]
@@ -39,7 +47,10 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "N", "PL", "TID"]
-ignore = ["PLR2004"]  # magic numbers are fine in tests and thresholds
+ignore = [
+    "PLR2004",  # magic numbers are fine in tests and thresholds
+    "PLR0913",  # adapters take their config as keyword arguments
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["study_assistant"]
@@ -51,6 +62,11 @@ strict = true
 files = ["src", "tests"]
 mypy_path = "src"
 warn_unreachable = true
+untyped_calls_exclude = ["pymupdf"]  # pymupdf.open() is unannotated
+
+[[tool.mypy.overrides]]
+module = ["FlagEmbedding.*", "transformers.*"]
+ignore_missing_imports = true
 
 # ---------------------------------------------------------------- import-linter
 [tool.importlinter]
@@ -92,3 +108,13 @@ forbidden_modules = [
     "fitz",
     "pymupdf",
 ]
+
+# ---------------------------------------------------------------- uv: CPU-only torch on Linux
+# The default Linux torch wheel pulls ~3 GB of CUDA libraries; CI and Docker run on CPU.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

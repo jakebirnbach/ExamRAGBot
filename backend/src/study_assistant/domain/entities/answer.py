@@ -5,8 +5,11 @@ from dataclasses import dataclass
 class Citation:
     source: str
     page: int
+    page_end: int | None = None
 
     def __str__(self) -> str:
+        if self.page_end and self.page_end != self.page:
+            return f"{self.source}, pp. {self.page}-{self.page_end}"
         return f"{self.source}, p. {self.page}"
 
 

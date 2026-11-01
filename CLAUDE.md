@@ -66,6 +66,14 @@ frontend/
 - Topic filtering via Pinecone metadata filters.
 - Simple password gate on the API for the deployed version.
 
+## Ingestion decisions (phase 2)
+- **Chunking is per document.** Prose (transcripts, study guide, articles) is chunked within page boundaries, so citations are single pages. Slide decks (median page < `SPARSE_PAGE_TOKENS`) merge consecutive pages, at most 6 per chunk, and carry `page_end`. Chunks are ≤450 tokens (so query + chunk fits the reranker's 512 window) and are prefixed with the document title.
+- **Topics** are course modules (`M3 · Health Behavior Change Theory`), derived from `Module N` folders and `M3 L1 Video 7 - …` file names; top-level handouts are matched to lessons by title. Ambiguous or unmatched files → `General / Reference`. `module` / `lesson` are stored separately too.
+- **Chunk ids** are `<sha256(source)[:16]>#<index>`: serverless Pinecone can't delete by metadata, so re-ingesting a file lists that id prefix and deletes its old chunks first.
+- **Skipped on purpose:** exact duplicates (by content hash, keeping the name without ` (1)`), image-only PDFs, non-PDFs, and anything in `data/ingest_exclude.txt` (e.g. the shorter Study Guide edition).
+- Pinecone index uses `dotproduct` (required for hybrid); dense/sparse weighting is `HYBRID_ALPHA`. Distinct topics live in one record in the `<namespace>--meta` namespace.
+- Linux installs CPU-only torch (`[tool.uv.sources]`); torch is a direct dependency only so that rule applies.
+
 ## Build phases
 1. **Scaffold** the folder structure, tooling (uv, ruff, mypy, pytest, import-linter), domain entities and ports, and in-memory fakes for tests.
 2. **Ingestion**: parser, chunker, BGE-M3 embedder, Pinecone adapter, `ingest` CLI command.

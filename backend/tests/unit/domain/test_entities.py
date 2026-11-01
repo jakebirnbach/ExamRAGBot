@@ -30,7 +30,10 @@ def test_chunk_metadata_validation() -> None:
 
 
 def test_chunk_id_is_deterministic() -> None:
-    assert Chunk.make_id("a.pdf", 3) == Chunk.make_id("a.pdf", 3) == "a.pdf::3"
+    assert Chunk.make_id("a.pdf", 3) == Chunk.make_id("a.pdf", 3)
+    assert Chunk.make_id("a.pdf", 3).startswith(Chunk.id_prefix("a.pdf"))
+    assert Chunk.id_prefix("a.pdf") != Chunk.id_prefix("b.pdf")
+    assert Chunk.make_id("Modül 1/ü.pdf", 0).isascii()
 
 
 def test_sparse_vector_lengths_must_match() -> None:
@@ -61,3 +64,15 @@ def test_metadata_filter(
     flt: MetadataFilter, topic: str | None, source: str, expected: bool
 ) -> None:
     assert flt.matches(topic, source) is expected
+
+
+def test_page_range_metadata() -> None:
+    meta = ChunkMetadata(source="deck.pdf", page=3, chunk_index=0, page_end=5)
+    assert meta.last_page == 5
+    assert ChunkMetadata(source="a.pdf", page=3, chunk_index=0).last_page == 3
+    with pytest.raises(ValueError, match="page_end"):
+        ChunkMetadata(source="a.pdf", page=3, chunk_index=0, page_end=3)
+
+
+def test_citation_page_range_str() -> None:
+    assert str(Citation("deck.pdf", 3, 5)) == "deck.pdf, pp. 3-5"

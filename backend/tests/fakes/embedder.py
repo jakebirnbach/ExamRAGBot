@@ -4,6 +4,7 @@ from collections import Counter
 from collections.abc import Sequence
 
 from study_assistant.domain.entities import Embedding, SparseVector
+from study_assistant.domain.errors import EmbeddingError
 from tests.fakes.text import tokenize
 
 
@@ -18,6 +19,8 @@ class FakeEmbedder:
         self._dimension = dimension
         self._vocab_size = vocab_size
         self.calls: list[Sequence[str]] = []
+        self.fail_on: str | None = None
+        """Raise ``EmbeddingError`` for any batch containing this substring."""
 
     @property
     def dimension(self) -> int:
@@ -25,6 +28,8 @@ class FakeEmbedder:
 
     def embed_documents(self, texts: Sequence[str]) -> list[Embedding]:
         self.calls.append(list(texts))
+        if self.fail_on and any(self.fail_on in t for t in texts):
+            raise EmbeddingError(f"fake failure on {self.fail_on!r}")
         return [self._embed(t) for t in texts]
 
     def embed_query(self, text: str) -> Embedding:

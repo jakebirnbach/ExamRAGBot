@@ -1,0 +1,5 @@
+# Files under data/raw/ that `study-assistant ingest` skips.
+# One file name (or path relative to data/raw/) per line.
+
+# Shorter edition of the Full 138pp study guide; indexing both duplicates passages.
+Health and Wellness Coaching - Study Guide.pdf
