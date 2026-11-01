@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # Pinecone
     pinecone_api_key: SecretStr | None = None
     pinecone_index_name: str = "study-assistant"
-    pinecone_namespace: str = "course"
+    pinecone_namespace: str = "default"
     pinecone_cloud: str = "aws"
     pinecone_region: str = "us-east-1"
 
