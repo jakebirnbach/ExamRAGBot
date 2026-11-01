@@ -31,10 +31,13 @@ class Settings(BaseSettings):
 
     # Reranking
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    reranker_batch_size: int = Field(default=16, ge=1)
 
     # Retrieval
     retrieval_top_k: int = Field(default=20, ge=1)
     rerank_top_n: int = Field(default=5, ge=1)
+    max_chunks_per_source: int = Field(default=2, ge=1)
+    """Diversity cap applied to the final top-N."""
     hybrid_alpha: float = Field(default=0.5, ge=0.0, le=1.0)
     """Dense weight in hybrid search (1.0 = dense only)."""
 

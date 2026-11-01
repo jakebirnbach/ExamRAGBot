@@ -1,56 +1,105 @@
 """Composition root: the only module that knows about concrete adapters.
 
-Builds infrastructure adapters from ``Settings`` and injects them into use cases.
+``Container`` builds each adapter once, on first use, and wires adapters into use cases.
+The CLI, the eval script and (later) the API all go through it.
 """
 
+from functools import cached_property
+
 from study_assistant.application.use_cases.ingest_documents import IngestDocuments
+from study_assistant.application.use_cases.list_topics import ListTopics
+from study_assistant.application.use_cases.retrieve_context import RetrieveContext
 from study_assistant.infrastructure.chunking.hf_token_counter import HuggingFaceTokenCounter
 from study_assistant.infrastructure.chunking.token_chunker import TokenChunker
 from study_assistant.infrastructure.config import Settings, get_settings
 from study_assistant.infrastructure.embedding.bge_m3_embedder import BgeM3Embedder
 from study_assistant.infrastructure.parsing.course_catalog import CourseCatalog
 from study_assistant.infrastructure.parsing.pymupdf_parser import PyMuPdfParser
+from study_assistant.infrastructure.reranking.bge_reranker import BgeReranker
 from study_assistant.infrastructure.vectorstore.pinecone_store import PineconeVectorStore
 from study_assistant.interfaces.cli.app import CliDependencies, build_app
 
 
-def build_ingest(settings: Settings) -> IngestDocuments:
-    root = settings.raw_data_dir
-    embedder = BgeM3Embedder(
-        model_name=settings.embedding_model,
-        batch_size=settings.embedding_batch_size,
-        device=settings.embedding_device,
-    )
-    api_key = settings.pinecone_api_key
-    return IngestDocuments(
-        parser=PyMuPdfParser(root, CourseCatalog.from_directory(root)),
-        chunker=TokenChunker(
-            HuggingFaceTokenCounter(settings.embedding_model),
-            max_tokens=settings.chunk_max_tokens,
-            overlap_tokens=settings.chunk_overlap_tokens,
-            sparse_page_tokens=settings.sparse_page_tokens,
-        ),
-        embedder=embedder,
-        store=PineconeVectorStore(
+class Container:
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+
+    # ------------------------------------------------------------------ adapters
+    @cached_property
+    def embedder(self) -> BgeM3Embedder:
+        s = self.settings
+        return BgeM3Embedder(
+            model_name=s.embedding_model,
+            batch_size=s.embedding_batch_size,
+            device=s.embedding_device,
+        )
+
+    @cached_property
+    def reranker(self) -> BgeReranker:
+        s = self.settings
+        return BgeReranker(
+            s.reranker_model, batch_size=s.reranker_batch_size, device=s.embedding_device
+        )
+
+    def vector_store(self, alpha: float | None = None) -> PineconeVectorStore:
+        """A store client; ``alpha`` overrides the configured hybrid weight (used by eval)."""
+        s = self.settings
+        api_key = s.pinecone_api_key
+        return PineconeVectorStore(
             api_key=api_key.get_secret_value() if api_key else None,
-            index_name=settings.pinecone_index_name,
-            namespace=settings.pinecone_namespace,
-            dimension=embedder.dimension,
-            cloud=settings.pinecone_cloud,
-            region=settings.pinecone_region,
-            alpha=settings.hybrid_alpha,
-        ),
-        embed_batch_size=settings.embedding_batch_size * 4,
-    )
+            index_name=s.pinecone_index_name,
+            namespace=s.pinecone_namespace,
+            dimension=BgeM3Embedder.DIMENSION,
+            cloud=s.pinecone_cloud,
+            region=s.pinecone_region,
+            alpha=s.hybrid_alpha if alpha is None else alpha,
+        )
+
+    @cached_property
+    def store(self) -> PineconeVectorStore:
+        return self.vector_store()
+
+    # ------------------------------------------------------------------ use cases
+    def ingest(self) -> IngestDocuments:
+        s = self.settings
+        root = s.raw_data_dir
+        return IngestDocuments(
+            parser=PyMuPdfParser(root, CourseCatalog.from_directory(root)),
+            chunker=TokenChunker(
+                HuggingFaceTokenCounter(s.embedding_model),
+                max_tokens=s.chunk_max_tokens,
+                overlap_tokens=s.chunk_overlap_tokens,
+                sparse_page_tokens=s.sparse_page_tokens,
+            ),
+            embedder=self.embedder,
+            store=self.store,
+            embed_batch_size=s.embedding_batch_size * 4,
+        )
+
+    def retrieve(self) -> RetrieveContext:
+        s = self.settings
+        return RetrieveContext(
+            self.embedder,
+            self.store,
+            self.reranker,
+            top_k=s.retrieval_top_k,
+            top_n=s.rerank_top_n,
+            max_per_source=s.max_chunks_per_source,
+        )
+
+    def list_topics(self) -> ListTopics:
+        return ListTopics(self.store)
 
 
 def cli() -> None:
-    settings = get_settings()
+    container = Container(get_settings())
     app = build_app(
         CliDependencies(
-            ingest=lambda: build_ingest(settings),
-            raw_data_dir=settings.raw_data_dir,
-            ingest_exclusions=settings.ingest_exclusions(),
+            ingest=container.ingest,
+            retrieve=container.retrieve,
+            list_topics=container.list_topics,
+            raw_data_dir=container.settings.raw_data_dir,
+            ingest_exclusions=container.settings.ingest_exclusions(),
         )
     )
     app()

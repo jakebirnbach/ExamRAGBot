@@ -1,0 +1,42 @@
+{"question": "When was the National Board for Health and Wellness Coaching established, and when did it start offering a board certification exam?", "answer_pattern": "since 2012 that the National Board|National Board for Health (and|&) Wellness Coaching.{0,120}2012|2012.{0,120}National Board for Health", "prefer": "M1 L1 Video 4"}
+{"question": "What does each letter in SMART goals stand for?", "answer_pattern": "specific.{0,60}measurable.{0,60}(achievable|attainable|action).{0,60}relevant.{0,60}time", "prefer": "M2 L3 Video 10"}
+{"question": "Who created the stages of change model and in what year?", "answer_pattern": "(Prochaska|Protesta).{0,40}(DiClemente|Di Clemente)", "prefer": "M3 L1 Video 2"}
+{"question": "What three basic psychological needs drive motivation according to Ryan and Deci?", "answer_pattern": "autonomy.{0,80}competence.{0,80}relatedness|competence.{0,80}autonomy.{0,80}relatedness", "prefer": "M3 L1 Video 4"}
+{"question": "In the theory of planned behavior, what is the strongest direct predictor of whether someone performs a behavior?", "answer_pattern": "directly influenced by intention|intention.{0,60}(most important|strongest|best) (determinant|predictor)", "prefer": "M3 L1 Video 5"}
+{"question": "What does the Patient Activation Measure (PAM) assess?", "answer_pattern": "knowledge, skills,? and confidence", "prefer": "M3 L1 Video 10"}
+{"question": "What are the four processes of motivational interviewing, in order?", "answer_pattern": "engag\\w*,? focus\\w*,? evok\\w*,? (and )?plan", "prefer": "M4 L1 Video 3"}
+{"question": "How can I check how confident my client feels about reaching their weekly goal?", "answer_pattern": "scale of (0|zero) to (10|ten)", "prefer": "M4 L2 Video 4"}
+{"question": "What is the difference between change talk and sustain talk?", "answer_pattern": "sustain talk.{0,250}(against|status quo|not chang|reasons? (to|for) not)|(status quo|not chang).{0,250}sustain talk", "prefer": "M4 L1 Video 12"}
+{"question": "My client keeps arguing against making changes. How should I handle that pushback?", "answer_pattern": "roll(ing)? with (the )?resistance", "prefer": "M4 L1 Video 13"}
+{"question": "How many of the five conditions must someone have to be diagnosed with metabolic syndrome?", "answer_pattern": "three or more of (these|the following)|(3|three) (or more )?of (the )?(5|five)", "prefer": "M6 L5 Video 6"}
+{"question": "Roughly how much of a person's body weight is water?", "answer_pattern": "(60|sixty) ?(%|percent) of (body|your|the body|total body) ?weight|water.{0,60}(50|55|60) ?(%|percent)", "prefer": "M6 L3 Video 12"}
+{"question": "Which vitamin deficiency causes scurvy?", "answer_pattern": "scurvy.{0,300}vitamin c|vitamin c.{0,300}scurvy", "prefer": "M6 L3 Video 5"}
+{"question": "How is an ACE score calculated and what does a high score mean?", "answer_pattern": "ACE score", "prefer": "M6 L5 Video 14"}
+{"question": "What's the difference between primary, secondary, and tertiary prevention?", "answer_pattern": "primary prevention.{0,400}secondary prevention|secondary prevention.{0,400}tertiary prevention", "prefer": "M6 L1 Video 2"}
+{"question": "What does the Travis illness-wellness continuum show?", "answer_pattern": "Travis|illness.?wellness continuum", "prefer": "M6 L1 Video 3"}
+{"question": "What are a health coach's legal obligations around protecting client information?", "answer_pattern": "HIPAA|client data confidentiality|protect client data", "prefer": "M5 L1 Video 6"}
+{"question": "Is health coaching the same thing as therapy? How do they differ?", "answer_pattern": "coaching is not psychotherapy|psychotherap\\w*.{0,200}(past|diagnos|mental (health )?(illness|disorder))", "prefer": "M1 L2 Video 4"}
+{"question": "What is the wellness wheel and how do coaches use it with clients?", "answer_pattern": "wellness wheel.{0,250}(assess|rate|rating|scale|score|areas|dimensions|spokes)", "prefer": "M2 L3 Video 13"}
+{"question": "What should the coach focus on in the last session of a coaching program?", "answer_pattern": "final (coaching )?session.{0,200}(recogni|progress|celebrat|closure)", "prefer": "M2 L5 Video 1"}
+{"question": "How much moderate-intensity aerobic exercise should adults get each week?", "answer_pattern": "150 minutes", "prefer": "M6 L2 Video 2"}
+{"question": "What does OARS stand for in motivational interviewing?", "answer_pattern": "open.?ended questions,? affirmations?,? reflect\\w*,? (and )?summar", "prefer": "M4 L1"}
+{"question": "Where does a person's belief in their ability to succeed come from? What builds it?", "answer_pattern": "mastery experiences?", "prefer": "M3 L1 Video 7"}
+{"question": "What are the levels of influence in the social ecological model?", "answer_pattern": "(intrapersonal|individual).{0,120}interpersonal.{0,120}(organizational|institutional|community)", "prefer": "M3 L1 Video 8"}
+{"question": "What are the phases of the appreciative inquiry cycle?", "answer_pattern": "discover\\w*,? dream\\w*,? design|number (one|two|three|four|five) is (define|discover|dream|design|destiny|deliver)", "prefer": "M3 L1 Video 9"}
+{"question": "What are the warning signs of a stroke I should know?", "answer_pattern": "BE ?FAST|\\bF\\.?A\\.?S\\.?T\\.?\\b.{0,80}(face|arm)|face drooping", "prefer": "M6 L5 Video 4"}
+{"question": "What A1C level is used to diagnose diabetes?", "answer_pattern": "(A1c|A1C|HbA1c|hemoglobin A1c).{0,150}6\\.5|6\\.5 ?%.{0,100}(A1c|diabet)", "prefer": "Laboratory Tests"}
+{"question": "What do the Dietary Guidelines recommend as the limit for added sugars?", "answer_pattern": "added sugars.{0,120}(less than|<) ?10 ?(%|percent)|(less than|<) ?10 ?(%|percent).{0,80}added sugars", "prefer": "Dietary_Guidelines"}
+{"question": "What are the seven dimensions of wellness?", "answer_pattern": "(seven|7) dimensions of wellness", "prefer": "Introduction to the Seven Dimensions"}
+{"question": "How many calories per gram do carbohydrates, protein, and fat provide?", "answer_pattern": "(9|nine) (kcal|calories) per gram|(4|four) (kcal|calories) per gram|(4|9) ?kcal ?/ ?g", "prefer": "Macronutrients"}
+{"question": "How can I tell the difference between disordered eating and an actual eating disorder?", "answer_pattern": "disordered eating.{0,250}(eating disorder).{0,250}(diagnos|clinical|criteria|continuum|spectrum)", "prefer": "M6 L3 Video 10"}
+{"question": "How many hours of sleep do adults need per night?", "answer_pattern": "(7|seven) (or more|to 9|-9|to nine|–9) hours", "prefer": "M6 L5 Video 10"}
+{"question": "What are the stages someone moves through when changing a behavior?", "answer_pattern": "pre[\\s-]*contemplation.{0,300}contemplation.{0,300}(preparation|action)", "prefer": "M3 L1 Video 2"}
+{"question": "What does weighing the pros and cons of changing a behavior have to do with readiness to change?", "answer_pattern": "decisional balance.{0,200}(pros|cons)|(pros|cons).{0,200}decisional balance", "prefer": "M3 L1 Video 3"}
+{"question": "What can a health coach do to avoid burning out?", "answer_pattern": "burnout.{0,300}(self.?care|boundar|prevent|strateg)", "prefer": "How to Deal With Burnout"}
+{"question": "What makes a food ultra-processed compared to minimally processed?", "answer_pattern": "NOVA|ultra.?processed foods? (are|is|contain|typically)", "prefer": "M6 L3 Video 11"}
+{"question": "How does repeating a behavior change the brain and help habits form?", "answer_pattern": "neuroplasticity.{0,250}(repet|habit|pathway|rewir|connections)", "prefer": "Neuroplasticity"}
+{"question": "What are social determinants of health? Give examples.", "answer_pattern": "social determinants of health (are|include)|conditions in (the )?environments? where people are born", "prefer": "M6 L1 Video 4"}
+{"question": "What is cultural humility in coaching?", "answer_pattern": "cultural humility (is|—|-|–|means|refers|involves)", "prefer": "Coaching Presence"}
+{"question": "What are the four elements of the spirit of motivational interviewing?", "answer_pattern": "partnership,? acceptance,? compassion,? (and )?evocation", "prefer": "M4 L1 Video 2"}
+{"question": "What are the health-related components of physical fitness?", "answer_pattern": "health.?related components of (physical )?fitness", "prefer": "M6 L2 Video 4"}
+{"question": "What are the health benefits of spending time outdoors in nature?", "answer_pattern": "nature exposure|forest bathing|shinrin", "prefer": "Science of Nature Exposure"}

@@ -13,6 +13,10 @@ class EmbeddingError(StudyAssistantError):
     """Text could not be embedded."""
 
 
+class RerankingError(StudyAssistantError):
+    """Candidates could not be reranked."""
+
+
 class VectorStoreError(StudyAssistantError):
     """The vector store rejected a write or a query."""
 

@@ -74,6 +74,11 @@ frontend/
 - Pinecone index uses `dotproduct` (required for hybrid); dense/sparse weighting is `HYBRID_ALPHA`. Distinct topics live in one record in the `<namespace>--meta` namespace.
 - Linux installs CPU-only torch (`[tool.uv.sources]`); torch is a direct dependency only so that rule applies.
 
+## Retrieval eval (phase 3)
+- `eval/questions.jsonl`: `{id, question, expected_source, expected_page, also_accept: [{source, page}], answer_pattern}`. A hit is any retrieved chunk whose source matches and whose page range covers an accepted page; the same fact often lives in a transcript, handout, study guide and deck, so all are accepted.
+- Gold pages come from `answer_pattern` (regex over every indexed page) via `eval/label_questions.py` on `eval/questions_draft.jsonl`. Patterns must match answer-bearing text, not mere mentions; check the page counts it prints.
+- `eval/run_eval.py` reports hit@1, hit@5, MRR@5 and recall@top_k per hybrid alpha, with and without reranking, using the app's per-source cap.
+
 ## Build phases
 1. **Scaffold** the folder structure, tooling (uv, ruff, mypy, pytest, import-linter), domain entities and ports, and in-memory fakes for tests.
 2. **Ingestion**: parser, chunker, BGE-M3 embedder, Pinecone adapter, `ingest` CLI command.
