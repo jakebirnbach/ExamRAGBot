@@ -1,6 +1,8 @@
+import random
 from collections.abc import Sequence
 
 from study_assistant.domain.entities import (
+    Chunk,
     EmbeddedChunk,
     Embedding,
     MetadataFilter,
@@ -54,6 +56,15 @@ class InMemoryVectorStore:
             scored.append(ScoredChunk(chunk=item.chunk, score=score))
         scored.sort(key=lambda s: s.score, reverse=True)
         return scored[:top_k]
+
+    def sample(self, count: int, metadata_filter: MetadataFilter | None = None) -> list[Chunk]:
+        chunks = [
+            item.chunk
+            for item in self.items.values()
+            if not metadata_filter
+            or metadata_filter.matches(item.chunk.metadata.topic, item.chunk.metadata.source)
+        ]
+        return random.Random(0).sample(chunks, min(count, len(chunks)))
 
     def list_topics(self) -> list[str]:
         return sorted({t for i in self.items.values() if (t := i.chunk.metadata.topic)})

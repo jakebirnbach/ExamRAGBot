@@ -68,6 +68,9 @@ class Settings(BaseSettings):
 
     # API
     api_password: SecretStr | None = None
+    """Required by the API server, which won't start without it."""
+    api_host: str = "127.0.0.1"
+    api_port: int = Field(default=8000, ge=1, le=65535)
 
     @field_validator("bedrock_model_id", "bedrock_aws_profile", mode="before")
     @classmethod

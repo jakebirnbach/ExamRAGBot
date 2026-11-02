@@ -1,14 +1,14 @@
 import pytest
 
 from study_assistant.application.use_cases.answer_question import (
-    NOT_COVERED_MARKER,
-    NOT_COVERED_TEXT,
+    GENERAL_MARKER,
     REFUSED_TEXT,
     SYSTEM_PROMPT,
     AnswerQuestion,
     build_user_message,
     renumber_citations,
 )
+from study_assistant.application.use_cases.list_topics import ListTopics
 from study_assistant.application.use_cases.retrieve_context import RetrieveContext
 from study_assistant.domain.entities import (
     Chunk,
@@ -77,11 +77,11 @@ def test_grounded_answer(retrieve: RetrieveContext) -> None:
     assert len(answer.citations) == 1 and answer.text.endswith("[1].")
 
 
-def test_not_covered_marker(retrieve: RetrieveContext) -> None:
-    llm = FakeLLM([f"{NOT_COVERED_MARKER}\nThe excerpts cover sleep and OARS [3]."])
-    answer = AnswerQuestion(retrieve, llm).execute("What is the capital of France?")
+def test_general_marker_is_stripped_and_not_grounded(retrieve: RetrieveContext) -> None:
+    llm = FakeLLM([f"{GENERAL_MARKER}\nStart with your weakest module [3]."])
+    answer = AnswerQuestion(retrieve, llm).execute("What should I review first?")
     assert not answer.grounded and answer.citations == ()
-    assert answer.text == f"{NOT_COVERED_TEXT} The excerpts cover sleep and OARS."
+    assert answer.text == "Start with your weakest module."
 
 
 def test_uncited_answer_is_not_grounded(retrieve: RetrieveContext) -> None:
@@ -89,10 +89,34 @@ def test_uncited_answer_is_not_grounded(retrieve: RetrieveContext) -> None:
     assert not answer.grounded and answer.text == "Probably eight hours."
 
 
-def test_no_retrieval_hits_skips_the_llm(retrieve: RetrieveContext) -> None:
-    llm = FakeLLM()
+def test_no_retrieval_hits_still_answers(retrieve: RetrieveContext) -> None:
+    llm = FakeLLM([f"{GENERAL_MARKER}\nParis."])
     answer = AnswerQuestion(retrieve, llm).execute("x", MetadataFilter(topics=("M9",)))
-    assert answer.text == NOT_COVERED_TEXT and not answer.grounded and llm.calls == []
+    assert answer.text == "Paris." and not answer.grounded and len(llm.calls) == 1
+
+
+def test_module_list_precedes_sources_and_ignores_the_topic_filter() -> None:
+    emb, store = FakeEmbedder(), InMemoryVectorStore()
+    for source, topic in (("a.pdf", "M1 · Basics & More"), ("b.pdf", "M2 · Theory")):
+        meta = ChunkMetadata(source, 1, 0, topic=topic)
+        chunk = Chunk(Chunk.make_id(source, 0), f"Title\nabout {source}", meta)
+        store.upsert([EmbeddedChunk(chunk, emb.embed_query(chunk.text))])
+    llm = FakeLLM(["x [1]"])
+    AnswerQuestion(
+        RetrieveContext(emb, store, top_k=2, top_n=2), llm, list_topics=ListTopics(store)
+    ).execute("plan?", MetadataFilter(topics=("M2 · Theory",)))
+
+    content = llm.calls[0].messages[0].content
+    assert content.startswith(
+        "<course_modules>\nM1 · Basics &amp; More\nM2 · Theory\n</course_modules>\n\n<sources>"
+    )
+    assert "about a.pdf" not in content  # the filter still limits the excerpts
+
+
+def test_citation_numbers_are_unaffected_by_the_module_list() -> None:
+    message = build_user_message("q", [hit("a.pdf", 1)], ["M1"])
+    assert '<source id="1"' in message
+    assert message.endswith("Question: q")
 
 
 def test_refusal_becomes_a_polite_answer(retrieve: RetrieveContext) -> None:

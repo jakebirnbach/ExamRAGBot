@@ -4,6 +4,8 @@ Hybrid search on Pinecone needs the ``dotproduct`` metric; dense and sparse quer
 are weighted client-side with ``alpha`` (1.0 = dense only, 0.0 = sparse only).
 """
 
+import math
+import random
 from collections.abc import Sequence
 from itertools import batched
 from typing import Any
@@ -22,6 +24,7 @@ from study_assistant.domain.entities import (
 from study_assistant.domain.errors import VectorStoreError
 
 _TOPICS_RECORD_ID = "topics"
+_SAMPLE_POOL = 50
 
 
 class PineconeVectorStore:
@@ -107,6 +110,27 @@ class PineconeVectorStore:
             ScoredChunk(chunk=_from_metadata(m.id, m.metadata or {}), score=m.score)
             for m in response.matches
         ]
+
+    def sample(self, count: int, metadata_filter: MetadataFilter | None = None) -> list[Chunk]:
+        """Pinecone has no random-read API, so query with a random direction and pick from
+        the matches. Not perfectly uniform (some vectors are near many directions), which is
+        fine for choosing quiz material."""
+        if count < 1:
+            return []
+        direction = [random.gauss() for _ in range(self._dimension)]
+        norm = math.sqrt(sum(x * x for x in direction))
+        try:
+            response = self._get_index().query(
+                top_k=max(count, _SAMPLE_POOL),
+                vector=[x / norm for x in direction],
+                filter=_to_filter(metadata_filter),
+                include_metadata=True,
+                namespace=self._namespace,
+            )
+        except PineconeError as exc:
+            raise VectorStoreError(f"Pinecone query failed: {exc}") from exc
+        picked = random.sample(response.matches, min(count, len(response.matches)))
+        return [_from_metadata(m.id, m.metadata or {}) for m in picked]
 
     def list_topics(self) -> list[str]:
         return sorted(self._stored_topics())

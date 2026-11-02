@@ -124,10 +124,11 @@ def test_ask_prints_answer_and_sources(tmp_path: Path, indexed_store: InMemoryVe
     assert "Sources:\n  [1] deck.pdf, pp. 10-12" in result.output
 
 
-def test_ask_not_covered(tmp_path: Path, indexed_store: InMemoryVectorStore) -> None:
-    llm = FakeLLM(["NOT_IN_MATERIALS\nThe excerpts cover TTM and OARS."])
+def test_ask_general_answer(tmp_path: Path, indexed_store: InMemoryVectorStore) -> None:
+    llm = FakeLLM(["GENERAL_KNOWLEDGE\nStart with your weakest module."])
     result = runner.invoke(
         build_app(make_deps(tmp_path, store=indexed_store, llm=llm)), ["ask", "x"]
     )
-    assert "course materials don't cover this" in result.output
-    assert "(No sources cited.)" in result.output
+    assert "Start with your weakest module." in result.output
+    assert "not from your course materials" in result.output
+    assert "GENERAL_KNOWLEDGE" not in result.output

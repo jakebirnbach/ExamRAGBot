@@ -1,15 +1,17 @@
 """Composition root: the only module that knows about concrete adapters.
 
 ``Container`` builds each adapter once, on first use, and wires adapters into use cases.
-The CLI, the eval script and (later) the API all go through it.
+The CLI, the eval script and the API all go through it.
 """
 
 from functools import cached_property
 
 from study_assistant.application.use_cases.answer_question import AnswerQuestion
+from study_assistant.application.use_cases.generate_quiz import GenerateQuiz, GradeAnswer
 from study_assistant.application.use_cases.ingest_documents import IngestDocuments
 from study_assistant.application.use_cases.list_topics import ListTopics
 from study_assistant.application.use_cases.retrieve_context import RetrieveContext
+from study_assistant.domain.entities import Chunk, ChunkMetadata, ScoredChunk
 from study_assistant.infrastructure.chunking.hf_token_counter import HuggingFaceTokenCounter
 from study_assistant.infrastructure.chunking.token_chunker import TokenChunker
 from study_assistant.infrastructure.config import Settings, get_settings
@@ -20,6 +22,7 @@ from study_assistant.infrastructure.parsing.course_catalog import CourseCatalog
 from study_assistant.infrastructure.parsing.pymupdf_parser import PyMuPdfParser
 from study_assistant.infrastructure.reranking.bge_reranker import BgeReranker
 from study_assistant.infrastructure.vectorstore.pinecone_store import PineconeVectorStore
+from study_assistant.interfaces.api.app import ApiDependencies, build_api
 from study_assistant.interfaces.cli.app import CliDependencies, build_app
 
 
@@ -107,10 +110,30 @@ class Container:
         )
 
     def answer(self) -> AnswerQuestion:
-        return AnswerQuestion(self.retrieve(), self.llm, max_tokens=self.settings.llm_max_tokens)
+        return AnswerQuestion(
+            self.retrieve(),
+            self.llm,
+            list_topics=self.list_topics(),
+            max_tokens=self.settings.llm_max_tokens,
+        )
 
     def list_topics(self) -> ListTopics:
         return ListTopics(self.store)
+
+    def generate_quiz(self) -> GenerateQuiz:
+        return GenerateQuiz(self.store, self.llm)
+
+    def grade_answer(self) -> GradeAnswer:
+        return GradeAnswer(self.llm)
+
+    def warm_up(self) -> None:
+        """Load both models and open the index, so a server's first request isn't slow. No LLM
+        call. Running this before serving also means the threads never race to build an adapter."""
+        self.embedder.embed_query("warm up")
+        sample = ScoredChunk(Chunk("warm-up", "warm up", ChunkMetadata("warm-up", 1, 0)), 0.0)
+        self.reranker.rerank("warm up", [sample], top_n=1)
+        self.store.list_topics()
+        _ = self.llm
 
 
 def cli() -> None:
@@ -126,6 +149,27 @@ def cli() -> None:
         )
     )
     app()
+
+
+def api() -> None:
+    import uvicorn  # noqa: PLC0415 - only the server needs it
+
+    container = Container(get_settings())
+    s = container.settings
+    password = s.api_password.get_secret_value() if s.api_password else ""
+    if not password.strip():
+        raise SystemExit("API_PASSWORD is not set. Add it to backend/.env, then start again.")
+    app = build_api(
+        ApiDependencies(
+            answer=container.answer,
+            list_topics=container.list_topics,
+            generate_quiz=container.generate_quiz,
+            grade_answer=container.grade_answer,
+            warm_up=container.warm_up,
+            password=password,
+        )
+    )
+    uvicorn.run(app, host=s.api_host, port=s.api_port)
 
 
 if __name__ == "__main__":

@@ -122,7 +122,7 @@ def build_app(deps: CliDependencies) -> typer.Typer:
             typer.Option("--topic", "-t", help="Restrict to a topic, e.g. M3 (repeatable)."),
         ] = None,
     ) -> None:
-        """Answer a question from the course materials, with file/page citations."""
+        """Answer a question, citing file and page when the course materials cover it."""
         flt = None
         if topic:
             flt = MetadataFilter(topics=_resolve_topics(topic, deps.list_topics().execute()))
@@ -133,7 +133,7 @@ def build_app(deps: CliDependencies) -> typer.Typer:
             for i, citation in enumerate(answer.citations, 1):
                 typer.echo(f"  [{i}] {citation}")
         elif answer.grounded is False:
-            typer.echo("\n(No sources cited.)")
+            typer.echo("\n(General knowledge, not from your course materials.)")
 
     @app.command()
     def topics() -> None:

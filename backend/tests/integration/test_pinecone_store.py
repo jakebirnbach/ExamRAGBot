@@ -92,6 +92,9 @@ def test_roundtrip_filter_delete_topics(store: PineconeVectorStore) -> None:
     assert [r.chunk.metadata.source for r in only_m2] == ["b.pdf"]
     assert store.list_topics() == ["M1", "M2"]
 
+    sampled = store.sample(5, MetadataFilter(topics=("M1",)))
+    assert {c.metadata.source for c in sampled} == {"a.pdf"} and len(sampled) == 2
+
     removed = 0
 
     def delete_a() -> bool:  # the list endpoint can lag behind query; retry until both seen

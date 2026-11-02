@@ -18,4 +18,4 @@ class Answer:
     text: str
     citations: tuple[Citation, ...]
     grounded: bool
-    """False when the retrieved materials did not cover the question."""
+    """False when the answer cites no course material, so it is general knowledge."""

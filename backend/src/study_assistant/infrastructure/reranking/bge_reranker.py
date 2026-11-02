@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from threading import Lock
 from typing import Any
 
 from study_assistant.domain.entities import ScoredChunk
@@ -23,6 +24,7 @@ class BgeReranker:
         self._max_length = max_length
         self._device = device
         self._model: Any = None
+        self._lock = Lock()  # API requests run in threads; fast tokenizers aren't thread-safe
 
     def rerank(
         self, query: str, candidates: Sequence[ScoredChunk], top_n: int
@@ -31,7 +33,8 @@ class BgeReranker:
             return []
         pairs = [(query, c.chunk.text) for c in candidates]
         try:
-            scores = self._get_model().compute_score(pairs, batch_size=self._batch_size)
+            with self._lock:
+                scores = self._get_model().compute_score(pairs, batch_size=self._batch_size)
         except Exception as exc:  # torch/transformers raise a wide variety of errors
             raise RerankingError(f"reranking failed: {exc}") from exc
         if isinstance(scores, float):  # FlagEmbedding unwraps single-pair results

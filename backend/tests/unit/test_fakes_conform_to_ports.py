@@ -96,3 +96,11 @@ def test_llm_scripted_replies() -> None:
     assert fake.calls[0].messages == (Message("user", "hi"),)
     with pytest.raises(LLMError):
         llm.complete("sys", [Message("user", "again")])
+
+
+def test_sample_respects_filter_and_count() -> None:
+    store = _indexed_store(FakeEmbedder(), FakeChunker())
+    picked = store.sample(1, MetadataFilter(topics=("nutrition",)))
+    assert [c.metadata.topic for c in picked] == ["nutrition"]
+    assert len(store.sample(100)) > 1
+    assert store.sample(5, MetadataFilter(topics=("absent",))) == []

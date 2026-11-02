@@ -1,7 +1,13 @@
 from collections.abc import Sequence
 from typing import Protocol
 
-from study_assistant.domain.entities import EmbeddedChunk, Embedding, MetadataFilter, ScoredChunk
+from study_assistant.domain.entities import (
+    Chunk,
+    EmbeddedChunk,
+    Embedding,
+    MetadataFilter,
+    ScoredChunk,
+)
 
 
 class VectorStore(Protocol):
@@ -20,6 +26,10 @@ class VectorStore(Protocol):
         metadata_filter: MetadataFilter | None = None,
     ) -> list[ScoredChunk]:
         """Hybrid (dense + sparse) search, best match first."""
+        ...
+
+    def sample(self, count: int, metadata_filter: MetadataFilter | None = None) -> list[Chunk]:
+        """Up to ``count`` chunks picked at random from those matching the filter."""
         ...
 
     def list_topics(self) -> list[str]:

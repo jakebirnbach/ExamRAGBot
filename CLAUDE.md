@@ -62,7 +62,7 @@ frontend/
 
 ## Behavior requirements
 - Every chunk stores metadata: source file, page, topic/lecture (if derivable), chunk index.
-- Answers must cite sources (file + page), answer only from retrieved context, and say so explicitly when the materials don't cover the question.
+- Answers cite sources (file + page) for anything from the course materials. The assistant also answers general questions (study planning, general health, anything else) from the model's own knowledge, and must keep that distinguishable: no citations, labelled in the UI (`grounded: false`), or marked in the sentence when mixed into a course answer. Quiz questions and reference answers stay course-only.
 - Retrieval: hybrid search top ~20, rerank to top ~5.
 - Topic filtering via Pinecone metadata filters.
 - Simple password gate on the API for the deployed version.
@@ -79,6 +79,15 @@ frontend/
 - `eval/questions.jsonl`: `{id, question, expected_source, expected_page, also_accept: [{source, page}], answer_pattern}`. A hit is any retrieved chunk whose source matches and whose page range covers an accepted page; the same fact often lives in a transcript, handout, study guide and deck, so all are accepted.
 - Gold pages come from `answer_pattern` (regex over every indexed page) via `eval/label_questions.py` on `eval/questions_draft.jsonl`. Patterns must match answer-bearing text, not mere mentions; check the page counts it prints.
 - `eval/run_eval.py` reports hit@1, hit@5, MRR@5 and recall@top_k per hybrid alpha, with and without reranking, using the app's per-source cap.
+
+## API + frontend (phase 5)
+- Run it: `uv run study-assistant-api` in `backend/` (port 8000), `npm run dev` in `frontend/` (Vite proxies `/api` to the API, so no CORS). The server warms both models before accepting requests (about 15 s) and refuses to start without `API_PASSWORD`.
+- Password gate: `Authorization: Bearer <password>` on every route except `/health`. The browser keeps it in `sessionStorage`. There's no rate limiting yet; add it before exposing the API publicly.
+- Quiz is stateless: `POST /quiz` returns the question and reference answer, the client hides the answer until graded, and `POST /quiz/grade` gets all three back. Acceptable because there's one trusted user.
+- `VectorStore.sample` picks quiz material by querying with a random vector (Pinecone has no random read). The model chooses the most testable of 4 sampled chunks, or skips them all and gets one fresh draw.
+- Each `/ask` is independent, with no conversation memory; the UI says so.
+- Every `/ask` also sends the model the module list (all topics, regardless of the topic filter), so study-planning answers can name real modules. It has names only, no exam weighting, so the prompt makes any ordering the model's own suggestion.
+- Model adapters hold a lock around inference, because routes run in a thread pool and fast tokenizers aren't thread-safe. One request at a time per model is fine for one user.
 
 ## Build phases
 1. **Scaffold** the folder structure, tooling (uv, ruff, mypy, pytest, import-linter), domain entities and ports, and in-memory fakes for tests.

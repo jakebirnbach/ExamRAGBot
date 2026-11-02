@@ -19,11 +19,13 @@ src/study_assistant/
                         VectorStoreError, LLMError > LLMRefusalError
   application/dto.py    plain dataclasses (IngestReport, IngestedFile, SkippedFile, FailedFile)
   application/use_cases/ ingest_documents.py (+ discover_files), retrieve_context.py
-                        (+ limit_per_source), answer_question.py, list_topics.py
+                        (+ limit_per_source), answer_question.py, list_topics.py,
+                        generate_quiz.py (GenerateQuiz + GradeAnswer)
   infrastructure/       parsing/, chunking/, embedding/, reranking/, vectorstore/,
                         llm/ (bedrock_claude.py, bedrock_converse.py), config.py (pydantic-settings)
   interfaces/cli/app.py typer app built by build_app(CliDependencies)
-  main.py               Container (composition root) + cli() entry point
+  interfaces/api/       FastAPI app built by build_api(ApiDependencies) + pydantic schemas
+  main.py               Container (composition root) + cli() and api() entry points
 tests/fakes/            one in-memory fake per port
 tests/unit/             domain/, application/, infrastructure/ (pure-logic adapters), interfaces/
 tests/integration/      real BGE-M3 (RUN_MODEL_TESTS=1), real Pinecone (needs PINECONE_API_KEY),
@@ -77,11 +79,20 @@ and fakes (`tests/unit/interfaces/test_cli.py`, `make_deps`).
 `backend/.env.example`. Relative paths are resolved against `backend/` by a validator, so
 `RAW_DATA_DIR=../data/raw` works from any working directory.
 
+**An API route:** in `interfaces/api/app.py` inside `build_api`, on the `protected` router so
+the password gate applies. Use plain `def` (use cases block; FastAPI runs these in a thread pool),
+take use-case factories through `ApiDependencies`, keep bodies in `schemas.py`. Domain errors become
+a generic 502 and the details stay in the server log. Test with `TestClient` and fakes
+(`tests/unit/interfaces/test_api.py`).
+
 ## Definition of done (run from backend/)
 
 ```
 uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run lint-imports && uv run pytest -q
 ```
+
+For `frontend/`: `npm run build && npm test` (strict type-check, Vite build, vitest with a mocked
+`fetch`). To see the UI without paid calls, run the real `build_api` with `FakeLLM`.
 
 CI (`.github/workflows/ci.yml`) runs the same commands, with unit tests only. mypy covers `src`,
 `tests` and `eval`. The suite takes about 3 s; if it gets slow, something is loading a model.
@@ -98,9 +109,11 @@ CI (`.github/workflows/ci.yml`) runs the same commands, with unit tests only. my
 
 - `application/use_cases/answer_question.py`: `AnswerQuestion` = `RetrieveContext` → numbered
   `<source>` excerpts (XML-escaped, title line stripped) → `LLM.complete` → `[n]` markers parsed
-  into `Citation`s and renumbered by first use. `NOT_IN_MATERIALS` on the reply's first line, or
-  no retrieval hits → "The course materials don't cover this." `LLMRefusalError` → polite text.
-  `grounded` is true only when at least one valid citation was made.
+  into `Citation`s and renumbered by first use. `GENERAL_KNOWLEDGE` on the reply's first line means the
+  excerpts didn't apply and the model answered from its own knowledge: the marker is stripped and the
+  UI labels the answer. No retrieval hits still calls the model. `LLMRefusalError` → polite text.
+  `grounded` is true only when at least one valid citation was made. Quizzes stay course-only.
+  The user message starts with a `<course_modules>` list from `ListTopics`, for study-planning answers.
 - The system prompt names the student and course (the user edited it to say Beverly / AFPA); keep
   their wording when changing it.
 - The `LLM` port has no `temperature`: current Claude models reject sampling parameters.

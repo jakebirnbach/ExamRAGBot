@@ -1,4 +1,5 @@
 from collections.abc import Mapping, Sequence
+from threading import Lock
 from typing import Any
 
 from study_assistant.domain.entities import Embedding, SparseVector
@@ -23,6 +24,7 @@ class BgeM3Embedder:
         self._max_length = max_length
         self._device = device
         self._model: Any = None
+        self._lock = Lock()  # API requests run in threads; fast tokenizers aren't thread-safe
 
     @property
     def dimension(self) -> int:
@@ -32,14 +34,15 @@ class BgeM3Embedder:
         if not texts:
             return []
         try:
-            out = self._get_model().encode(
-                list(texts),
-                batch_size=self._batch_size,
-                max_length=self._max_length,
-                return_dense=True,
-                return_sparse=True,
-                return_colbert_vecs=False,
-            )
+            with self._lock:
+                out = self._get_model().encode(
+                    list(texts),
+                    batch_size=self._batch_size,
+                    max_length=self._max_length,
+                    return_dense=True,
+                    return_sparse=True,
+                    return_colbert_vecs=False,
+                )
         except Exception as exc:  # torch/transformers raise a wide variety of errors
             raise EmbeddingError(f"BGE-M3 encoding failed: {exc}") from exc
         return [
