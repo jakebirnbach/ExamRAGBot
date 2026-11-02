@@ -1,7 +1,29 @@
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
-import Markdown from "react-markdown";
+import Markdown, { type Components } from "react-markdown";
 import { type Answer, type Api, UnauthorizedError } from "./api";
 import { Sources } from "./Sources";
+
+const STARTERS = [
+  "My exam is in a month. What should I review first?",
+  "What are the stages of change?",
+  "What does OARS stand for?",
+];
+
+/** Turns the model's [1] markers into links, which the renderer below shows as badges. */
+function markCitations(text: string): string {
+  return text.replace(/\[(\d+)\]/g, "[$1](#cite)");
+}
+
+const markdownComponents: Components = {
+  a: ({ href, children }) =>
+    href === "#cite" ? (
+      <sup className="cite">{children}</sup>
+    ) : (
+      <a href={href} target="_blank" rel="noreferrer">
+        {children}
+      </a>
+    ),
+};
 
 interface Exchange {
   id: number;
@@ -44,14 +66,18 @@ export function AskView({ api, topics, onExpired }: Props) {
     }
   }
 
-  function submit(event?: FormEvent) {
-    event?.preventDefault();
-    const question = draft.trim();
+  function send(text: string) {
+    const question = text.trim();
     if (!question || busy) return;
     const id = nextId.current++;
     setExchanges((all) => [...all, { id, question, topics }]);
     setDraft("");
     void run(id, question, topics);
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    send(draft);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -61,10 +87,25 @@ export function AskView({ api, topics, onExpired }: Props) {
   return (
     <>
       {exchanges.length === 0 && (
-        <p className="intro">
-          Ask anything. When your course materials cover it, the answer comes from them, with the
-          file and page to check. Anything else is labelled as a general answer.
-        </p>
+        <div className="welcome">
+          <p className="intro">
+            Ask me anything. When your course covers it, I'll answer from your materials and show
+            the file and page. Anything else gets a general answer, labelled so you can tell.
+          </p>
+          <h2>Try one of these</h2>
+          <div className="starters">
+            {STARTERS.map((starter) => (
+              <button
+                key={starter}
+                type="button"
+                className="starter"
+                onClick={() => send(starter)}
+              >
+                {starter}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="conversation">
@@ -80,7 +121,9 @@ export function AskView({ api, topics, onExpired }: Props) {
                 {!x.answer.grounded && (
                   <p className="general-note">General answer, not from your course materials</p>
                 )}
-                <Markdown>{x.answer.text}</Markdown>
+                <Markdown components={markdownComponents}>
+                  {markCitations(x.answer.text)}
+                </Markdown>
                 <Sources citations={x.answer.citations} />
               </div>
             )}
@@ -99,6 +142,11 @@ export function AskView({ api, topics, onExpired }: Props) {
             )}
             {!x.answer && !x.error && (
               <p className="pending" role="status">
+                <span className="dots" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </span>
                 Reading your course materials…
               </p>
             )}

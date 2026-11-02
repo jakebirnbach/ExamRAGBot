@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type Api, createApi, UnauthorizedError } from "./api";
 import { AskView } from "./AskView";
+import { greeting } from "./greeting";
 import { Login } from "./Login";
 import { QuizView } from "./QuizView";
 
@@ -94,15 +95,27 @@ function Workspace({ api, topics, onExpired, onSignOut }: WorkspaceProps) {
   const [mode, setMode] = useState<Mode>("ask");
   const [topic, setTopic] = useState("");
   const selected = useMemo(() => (topic ? [topic] : []), [topic]);
+  const [now, setNow] = useState(() => new Date());
+
+  // The tab may stay open all day, so the greeting has to keep up with the clock.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="app">
       <header className="masthead">
-        <h1>Study Assistant</h1>
+        <p className="brand">Study Assistant</p>
         <button type="button" className="link" onClick={onSignOut}>
           Sign out
         </button>
       </header>
+
+      <div className="hero">
+        <h1>{greeting(now)}</h1>
+        <p>{mode === "ask" ? "What would you like to go over?" : "Ready to test yourself?"}</p>
+      </div>
 
       <div className="controls">
         <div className="tabs" role="tablist" aria-label="Mode">

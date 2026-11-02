@@ -122,8 +122,13 @@ export function QuizView({ api, topics, onExpired }: Props) {
           {grade && (
             <>
               <div className={grade.correct ? "verdict good" : "verdict"} role="status">
-                <strong>{verdict(grade)}</strong>
-                <span>{Math.round(grade.score * 100)}%</span>
+                <div className="verdict-row">
+                  <strong>{verdict(grade)}</strong>
+                  <span>{Math.round(grade.score * 100)}%</span>
+                </div>
+                <div className="meter" aria-hidden="true">
+                  <div style={{ width: `${Math.round(grade.score * 100)}%` }} />
+                </div>
               </div>
               <p>{grade.feedback}</p>
               <h3>Your answer</h3>

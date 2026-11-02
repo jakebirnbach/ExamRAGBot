@@ -70,7 +70,31 @@ describe("sign-in", () => {
   });
 });
 
+describe("greeting", () => {
+  it("greets her by name only after sign-in", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    expect(screen.queryByText(/Beverly/)).toBeNull();
+    await user.type(screen.getByLabelText("Password"), "secret{Enter}");
+    expect(
+      await screen.findByRole("heading", { name: /^Good (morning|afternoon|evening), Beverly$/ }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("ask", () => {
+  it("asks a starter question in one tap, then hides the starters", async () => {
+    const user = userEvent.setup();
+    await signIn(user);
+    handlers["/api/ask"] = () => [200, { text: "Six stages.", citations: [], grounded: true }];
+    const starter = "What are the stages of change?";
+    await user.click(screen.getByRole("button", { name: starter }));
+
+    expect(await screen.findByText("Six stages.")).toBeInTheDocument();
+    expect(calls.at(-1)?.body).toEqual({ question: starter, topics: [] });
+    expect(screen.queryByRole("button", { name: starter })).toBeNull();
+  });
+
   it("sends the chosen topic and renders the answer with its sources", async () => {
     const user = userEvent.setup();
     await signIn(user);
@@ -82,7 +106,9 @@ describe("ask", () => {
     await user.type(screen.getByLabelText("Your question"), "Which stages?{Enter}");
 
     expect(await screen.findByText("Six")).toHaveProperty("tagName", "STRONG");
-    expect(screen.getByText("deck.pdf, pp. 3-5")).toBeInTheDocument();
+    expect(screen.getByText("deck")).toBeInTheDocument();
+    expect(screen.getByText("pp. 3–5")).toBeInTheDocument();
+    expect(document.querySelector("sup.cite")).toHaveTextContent("1");
     expect(calls.at(-1)?.body).toEqual({ question: "Which stages?", topics: [TOPICS[0]] });
   });
 
@@ -91,9 +117,9 @@ describe("ask", () => {
     await signIn(user);
     const label = "General answer, not from your course materials";
 
-    handlers["/api/ask"] = () => [200, { text: "Cited [1].", citations: [CITATION], grounded: true }];
+    handlers["/api/ask"] = () => [200, { text: "Cited answer [1].", citations: [CITATION], grounded: true }];
     await user.type(screen.getByLabelText("Your question"), "course{Enter}");
-    await screen.findByText("Cited [1].");
+    await screen.findByText(/Cited answer/);
     expect(screen.queryByText(label)).toBeNull();
 
     handlers["/api/ask"] = () => [200, { text: "Start early.", citations: [], grounded: false }];
@@ -151,14 +177,14 @@ describe("quiz", () => {
 
     await screen.findByText(QUESTION.question);
     expect(screen.queryByText("Precontemplation.")).toBeNull();
-    expect(screen.queryByText("deck.pdf, pp. 3-5")).toBeNull();
+    expect(screen.queryByText("deck")).toBeNull();
 
     await user.type(screen.getByLabelText("Your answer"), "Thinking");
     await user.click(screen.getByRole("button", { name: "Check my answer" }));
 
     expect(await screen.findByText("Partly right")).toBeInTheDocument();
     expect(screen.getByText("Precontemplation.")).toBeInTheDocument();
-    expect(screen.getByText("deck.pdf, pp. 3-5")).toBeInTheDocument();
+    expect(screen.getByText("deck")).toBeInTheDocument();
     expect(screen.getByText("1 answered · 50% average")).toBeInTheDocument();
     expect(calls.at(-1)?.body).toEqual({
       question: QUESTION.question,
