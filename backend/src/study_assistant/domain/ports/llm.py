@@ -16,8 +16,11 @@ class LLM(Protocol):
         self,
         system: str,
         messages: Sequence[Message],
-        max_tokens: int = 1024,
-        temperature: float = 0.0,
+        max_tokens: int = 4096,
     ) -> str:
-        """Return the model's text reply. Raises ``LLMError`` on failure."""
+        """Return the model's text reply.
+
+        Raises ``LLMRefusalError`` when the model's safety system declines the request and
+        ``LLMError`` for any other failure. (No sampling parameters: current Claude models
+        reject ``temperature``/``top_p``.)"""
         ...

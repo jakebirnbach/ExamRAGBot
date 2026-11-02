@@ -8,6 +8,7 @@ from typing import Annotated
 import typer
 
 from study_assistant.application.dto import FailedFile, FileOutcome, IngestedFile, SkippedFile
+from study_assistant.application.use_cases.answer_question import AnswerQuestion
 from study_assistant.application.use_cases.ingest_documents import IngestDocuments, discover_files
 from study_assistant.application.use_cases.list_topics import ListTopics
 from study_assistant.application.use_cases.retrieve_context import RetrieveContext
@@ -19,6 +20,7 @@ class CliDependencies:
     ingest: Callable[[], IngestDocuments]
     """Factory, so heavy adapters are only built when a command needs them."""
     retrieve: Callable[[], RetrieveContext]
+    answer: Callable[[], AnswerQuestion]
     list_topics: Callable[[], ListTopics]
     raw_data_dir: Path
     ingest_exclusions: frozenset[str]
@@ -111,6 +113,27 @@ def build_app(deps: CliDependencies) -> typer.Typer:
             typer.echo("no results")
         for rank, hit in enumerate(hits, 1):
             typer.echo(_format_hit(rank, hit, snippet))
+
+    @app.command()
+    def ask(
+        question: Annotated[str, typer.Argument(help="Question about the course materials.")],
+        topic: Annotated[
+            list[str] | None,
+            typer.Option("--topic", "-t", help="Restrict to a topic, e.g. M3 (repeatable)."),
+        ] = None,
+    ) -> None:
+        """Answer a question from the course materials, with file/page citations."""
+        flt = None
+        if topic:
+            flt = MetadataFilter(topics=_resolve_topics(topic, deps.list_topics().execute()))
+        answer = deps.answer().execute(question, flt)
+        typer.echo(answer.text)
+        if answer.citations:
+            typer.echo("\nSources:")
+            for i, citation in enumerate(answer.citations, 1):
+                typer.echo(f"  [{i}] {citation}")
+        elif answer.grounded is False:
+            typer.echo("\n(No sources cited.)")
 
     @app.command()
     def topics() -> None:

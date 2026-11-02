@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from study_assistant.application.use_cases.answer_question import AnswerQuestion
 from study_assistant.application.use_cases.ingest_documents import IngestDocuments
 from study_assistant.application.use_cases.list_topics import ListTopics
 from study_assistant.application.use_cases.retrieve_context import RetrieveContext
@@ -16,7 +17,13 @@ from study_assistant.domain.entities import (
 )
 from study_assistant.domain.ports import DocumentParser
 from study_assistant.interfaces.cli.app import CliDependencies, build_app
-from tests.fakes import FakeChunker, FakeDocumentParser, FakeEmbedder, InMemoryVectorStore
+from tests.fakes import (
+    FakeChunker,
+    FakeDocumentParser,
+    FakeEmbedder,
+    FakeLLM,
+    InMemoryVectorStore,
+)
 
 runner = CliRunner()
 
@@ -26,11 +33,13 @@ def make_deps(
     parser: DocumentParser | None = None,
     store: InMemoryVectorStore | None = None,
     exclusions: Sequence[str] = (),
+    llm: FakeLLM | None = None,
 ) -> CliDependencies:
     emb, st = FakeEmbedder(), store if store is not None else InMemoryVectorStore()
     return CliDependencies(
         ingest=lambda: IngestDocuments(parser or FakeDocumentParser(), FakeChunker(), emb, st),
         retrieve=lambda: RetrieveContext(emb, st, top_k=5, top_n=2),
+        answer=lambda: AnswerQuestion(RetrieveContext(emb, st, top_k=5, top_n=2), llm or FakeLLM()),
         list_topics=lambda: ListTopics(st),
         raw_data_dir=root,
         ingest_exclusions=frozenset(exclusions),
@@ -104,3 +113,21 @@ def test_search_topic_filter_by_prefix(tmp_path: Path, indexed_store: InMemoryVe
 def test_topics_command(tmp_path: Path, indexed_store: InMemoryVectorStore) -> None:
     result = runner.invoke(build_app(make_deps(tmp_path, store=indexed_store)), ["topics"])
     assert result.output.splitlines() == ["General / Reference", "M3 · Behavior Change"]
+
+
+def test_ask_prints_answer_and_sources(tmp_path: Path, indexed_store: InMemoryVectorStore) -> None:
+    llm = FakeLLM(["OARS covers reflections [1]."])
+    app = build_app(make_deps(tmp_path, store=indexed_store, llm=llm))
+    result = runner.invoke(app, ["ask", "What is OARS?"])
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines()[0] == "OARS covers reflections [1]."
+    assert "Sources:\n  [1] deck.pdf, pp. 10-12" in result.output
+
+
+def test_ask_not_covered(tmp_path: Path, indexed_store: InMemoryVectorStore) -> None:
+    llm = FakeLLM(["NOT_IN_MATERIALS\nThe excerpts cover TTM and OARS."])
+    result = runner.invoke(
+        build_app(make_deps(tmp_path, store=indexed_store, llm=llm)), ["ask", "x"]
+    )
+    assert "course materials don't cover this" in result.output
+    assert "(No sources cited.)" in result.output

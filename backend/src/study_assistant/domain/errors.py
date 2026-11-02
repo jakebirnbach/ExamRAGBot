@@ -23,3 +23,11 @@ class VectorStoreError(StudyAssistantError):
 
 class LLMError(StudyAssistantError):
     """The language model call failed or returned unusable output."""
+
+
+class LLMRefusalError(LLMError):
+    """The model's safety system declined the request (a normal response, not an outage)."""
+
+    def __init__(self, category: str | None = None) -> None:
+        self.category = category
+        super().__init__(f"model declined the request ({category or 'no category'})")

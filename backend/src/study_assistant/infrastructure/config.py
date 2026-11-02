@@ -1,7 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
@@ -48,13 +49,33 @@ class Settings(BaseSettings):
     pinecone_cloud: str = "aws"
     pinecone_region: str = "us-east-1"
 
-    # AWS Bedrock
-    aws_region: str = "us-east-1"
-    bedrock_model_id: str | None = None
-    """Claude Haiku model / inference-profile id; set via BEDROCK_MODEL_ID."""
+    # AWS Bedrock (Claude via the Anthropic SDK's Bedrock client)
+    bedrock_region: str = "us-east-1"
+    bedrock_api: Literal["messages", "converse"] = "converse"
+    """``converse`` (default): AWS Converse API via boto3, for Claude Haiku 4.5 - the model this
+    AWS account can use. ``messages``: Anthropic SDK Bedrock client, for current models such as
+    Haiku 5.5 (``anthropic.claude-haiku-5-5``), which AWS hasn't enabled on this account.
+    ``llm_effort`` applies to ``messages`` only."""
+    bedrock_model_id: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    bedrock_aws_profile: str | None = None
+    """Named profile from ~/.aws (e.g. ``exam-rag-bot``). This and ``bedrock_region`` are
+    deliberately not ``AWS_PROFILE`` / ``AWS_REGION``: shell-exported AWS variables override
+    .env and would silently switch the credentials or region the app uses."""
+    llm_effort: str = "low"
+    """How much the model thinks before answering: low / medium / high."""
+    llm_max_tokens: int = Field(default=4096, ge=256)
+    """Covers thinking plus the answer."""
 
     # API
     api_password: SecretStr | None = None
+
+    @field_validator("bedrock_model_id", "bedrock_aws_profile", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: object, info: ValidationInfo) -> object:
+        """A blank ``KEY=`` line in .env means "use the default", not an empty string."""
+        if isinstance(value, str) and not value.strip() and info.field_name:
+            return cls.model_fields[info.field_name].default
+        return value
 
     @field_validator("raw_data_dir", "ingest_exclude_file")
     @classmethod

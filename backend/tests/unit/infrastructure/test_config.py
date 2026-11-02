@@ -13,3 +13,9 @@ def test_ingest_exclusions_ignores_comments(tmp_path: Path) -> None:
     f.write_text("# comment\nA.pdf  # why\n\n  B.pdf\n")
     s = Settings(_env_file=None, ingest_exclude_file=f)  # type: ignore[call-arg]
     assert s.ingest_exclusions() == frozenset({"A.pdf", "B.pdf"})
+
+
+def test_blank_bedrock_settings_fall_back_to_defaults() -> None:
+    s = Settings(_env_file=None, bedrock_model_id="", bedrock_aws_profile="  ")  # type: ignore[call-arg]
+    assert s.bedrock_model_id == "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    assert s.bedrock_aws_profile is None

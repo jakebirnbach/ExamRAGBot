@@ -16,17 +16,18 @@ src/study_assistant/
   domain/ports/         typing.Protocol interfaces: DocumentParser, Chunker, Embedder, VectorStore,
                         Reranker, LLM (+ Message, Role)
   domain/errors.py      StudyAssistantError > DocumentParsingError, EmbeddingError, RerankingError,
-                        VectorStoreError, LLMError
+                        VectorStoreError, LLMError > LLMRefusalError
   application/dto.py    plain dataclasses (IngestReport, IngestedFile, SkippedFile, FailedFile)
   application/use_cases/ ingest_documents.py (+ discover_files), retrieve_context.py
-                        (+ limit_per_source), list_topics.py
-  infrastructure/       parsing/, chunking/, embedding/, reranking/, vectorstore/, llm/ (empty until
-                        phase 4), config.py (pydantic-settings)
+                        (+ limit_per_source), answer_question.py, list_topics.py
+  infrastructure/       parsing/, chunking/, embedding/, reranking/, vectorstore/,
+                        llm/ (bedrock_claude.py, bedrock_converse.py), config.py (pydantic-settings)
   interfaces/cli/app.py typer app built by build_app(CliDependencies)
   main.py               Container (composition root) + cli() entry point
 tests/fakes/            one in-memory fake per port
 tests/unit/             domain/, application/, infrastructure/ (pure-logic adapters), interfaces/
-tests/integration/      real BGE-M3 (RUN_MODEL_TESTS=1) and real Pinecone (needs PINECONE_API_KEY)
+tests/integration/      real BGE-M3 (RUN_MODEL_TESTS=1), real Pinecone (needs PINECONE_API_KEY),
+                        real Bedrock (RUN_BEDROCK_TESTS=1; a paid call)
 eval/                   retrieval eval (see the retrieval-eval skill)
 ```
 
@@ -35,7 +36,7 @@ eval/                   retrieval eval (see the retrieval-eval skill)
 1. Layers: main > interfaces > infrastructure > application > domain. Only inward imports.
 2. `interfaces` must never import `infrastructure`.
 3. `domain` and `application` must not import pydantic, pydantic_settings, fastapi, typer, boto3,
-   botocore, pinecone, torch, sentence_transformers, FlagEmbedding, fitz or pymupdf. Use stdlib
+   botocore, pinecone, torch, sentence_transformers, FlagEmbedding, fitz, pymupdf or anthropic. Use stdlib
    dataclasses. A new SDK that only infrastructure may touch should be added to that list.
 
 These contracts are tested: a deliberate bad import makes them fail. Never "fix" a broken contract
@@ -93,12 +94,16 @@ CI (`.github/workflows/ci.yml`) runs the same commands, with unit tests only. my
 - Commit and push only when the user asks. Before committing, confirm nothing from `backend/.env`
   or `data/raw/` is staged.
 
-## Phase 4 notes (generation, not built yet)
+## Generation (phase 4, built)
 
-- `BEDROCK_MODEL_ID` is set in `.env`; the code default is `None` on purpose. Load the claude-api
-  skill before writing the Bedrock adapter, and don't guess model IDs.
-- Use the Converse API via boto3 (`bedrock-runtime`). Add `boto3` and `botocore` only to
-  infrastructure; they are already in the forbidden list for domain and application.
-- `answer_question` should build on `RetrieveContext.execute()` (returns at most 5 ScoredChunks)
-  and produce `Answer(text, citations, grounded)`. `Citation` already supports `page_end` for
-  slide ranges.
+- `application/use_cases/answer_question.py`: `AnswerQuestion` = `RetrieveContext` → numbered
+  `<source>` excerpts (XML-escaped, title line stripped) → `LLM.complete` → `[n]` markers parsed
+  into `Citation`s and renumbered by first use. `NOT_IN_MATERIALS` on the reply's first line, or
+  no retrieval hits → "The course materials don't cover this." `LLMRefusalError` → polite text.
+  `grounded` is true only when at least one valid citation was made.
+- The system prompt names the student and course (the user edited it to say Beverly / AFPA); keep
+  their wording when changing it.
+- The `LLM` port has no `temperature`: current Claude models reject sampling parameters.
+- Two adapters live in `infrastructure/llm/`; `Container.llm` picks one from `BEDROCK_API`
+  (default `converse` = Haiku 4.5). See the bedrock-llm skill for setup, access issues and switching.
+- CLI: `study-assistant ask "<question>" [--topic M3]`.

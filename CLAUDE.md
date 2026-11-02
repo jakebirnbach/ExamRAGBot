@@ -7,7 +7,7 @@ A personal study assistant for a master's student in Health & Wellness. It answe
 - **Embeddings:** BAAI/bge-m3 (dense + sparse) via FlagEmbedding / sentence-transformers, run locally on CPU
 - **Vector store:** Pinecone (serverless index, hybrid dense+sparse, metadata filtering)
 - **Reranker:** BAAI/bge-reranker-v2-m3 (cross-encoder, local)
-- **LLM:** Claude Haiku via AWS Bedrock (`boto3` bedrock-runtime, Converse API)
+- **LLM:** Claude Haiku 4.5 via AWS Bedrock's Converse API (boto3), the default (`BEDROCK_API=converse`). Haiku 5.5 isn't enabled on this AWS account; an Anthropic SDK Bedrock adapter (`anthropic[bedrock]`, `BEDROCK_API=messages`) is kept ready for it (see the bedrock-llm skill).
 - **Parsing:** PyMuPDF for PDFs (add python-pptx / python-docx only if needed)
 - **Frontend (TypeScript):** React + Vite, strict TS, talks to the FastAPI backend over JSON
 - **Deployment (later phase):** Docker, AWS App Runner or EC2, secrets in env vars / Secrets Manager
@@ -35,7 +35,8 @@ backend/
       embedding/bge_m3_embedder.py
       vectorstore/pinecone_store.py
       reranking/bge_reranker.py
-      llm/bedrock_llm.py
+      llm/bedrock_converse.py    # boto3 Converse API - default (Haiku 4.5)
+      llm/bedrock_claude.py      # Anthropic SDK Bedrock client - for Haiku 5.5 later
       config.py        # pydantic-settings; reads env vars
     interfaces/        # delivery layer
       api/             # FastAPI routers, request/response schemas

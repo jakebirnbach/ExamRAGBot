@@ -6,6 +6,7 @@ The CLI, the eval script and (later) the API all go through it.
 
 from functools import cached_property
 
+from study_assistant.application.use_cases.answer_question import AnswerQuestion
 from study_assistant.application.use_cases.ingest_documents import IngestDocuments
 from study_assistant.application.use_cases.list_topics import ListTopics
 from study_assistant.application.use_cases.retrieve_context import RetrieveContext
@@ -13,6 +14,8 @@ from study_assistant.infrastructure.chunking.hf_token_counter import HuggingFace
 from study_assistant.infrastructure.chunking.token_chunker import TokenChunker
 from study_assistant.infrastructure.config import Settings, get_settings
 from study_assistant.infrastructure.embedding.bge_m3_embedder import BgeM3Embedder
+from study_assistant.infrastructure.llm.bedrock_claude import BedrockClaudeLLM
+from study_assistant.infrastructure.llm.bedrock_converse import BedrockConverseLLM
 from study_assistant.infrastructure.parsing.course_catalog import CourseCatalog
 from study_assistant.infrastructure.parsing.pymupdf_parser import PyMuPdfParser
 from study_assistant.infrastructure.reranking.bge_reranker import BgeReranker
@@ -59,6 +62,22 @@ class Container:
     def store(self) -> PineconeVectorStore:
         return self.vector_store()
 
+    @cached_property
+    def llm(self) -> BedrockClaudeLLM | BedrockConverseLLM:
+        s = self.settings
+        if s.bedrock_api == "converse":
+            return BedrockConverseLLM(
+                model_id=s.bedrock_model_id,
+                region=s.bedrock_region,
+                aws_profile=s.bedrock_aws_profile,
+            )
+        return BedrockClaudeLLM(
+            model_id=s.bedrock_model_id,
+            region=s.bedrock_region,
+            aws_profile=s.bedrock_aws_profile,
+            effort=s.llm_effort,
+        )
+
     # ------------------------------------------------------------------ use cases
     def ingest(self) -> IngestDocuments:
         s = self.settings
@@ -87,6 +106,9 @@ class Container:
             max_per_source=s.max_chunks_per_source,
         )
 
+    def answer(self) -> AnswerQuestion:
+        return AnswerQuestion(self.retrieve(), self.llm, max_tokens=self.settings.llm_max_tokens)
+
     def list_topics(self) -> ListTopics:
         return ListTopics(self.store)
 
@@ -97,6 +119,7 @@ def cli() -> None:
         CliDependencies(
             ingest=container.ingest,
             retrieve=container.retrieve,
+            answer=container.answer,
             list_topics=container.list_topics,
             raw_data_dir=container.settings.raw_data_dir,
             ingest_exclusions=container.settings.ingest_exclusions(),
