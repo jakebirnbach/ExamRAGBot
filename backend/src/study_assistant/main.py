@@ -126,12 +126,17 @@ class Container:
     def grade_answer(self) -> GradeAnswer:
         return GradeAnswer(self.llm)
 
-    def warm_up(self) -> None:
-        """Load both models and open the index, so a server's first request isn't slow. No LLM
-        call. Running this before serving also means the threads never race to build an adapter."""
+    def load_models(self) -> None:
+        """Load both local models, downloading them if needed. The Docker build uses this to put
+        exactly the files the app reads into the image."""
         self.embedder.embed_query("warm up")
         sample = ScoredChunk(Chunk("warm-up", "warm up", ChunkMetadata("warm-up", 1, 0)), 0.0)
         self.reranker.rerank("warm up", [sample], top_n=1)
+
+    def warm_up(self) -> None:
+        """Load both models and open the index, so a server's first request isn't slow. No LLM
+        call. Running this before serving also means the threads never race to build an adapter."""
+        self.load_models()
         self.store.list_topics()
         _ = self.llm
 
@@ -167,6 +172,8 @@ def api() -> None:
             grade_answer=container.grade_answer,
             warm_up=container.warm_up,
             password=password,
+            max_failed_logins=s.api_max_failed_logins,
+            lockout_seconds=s.api_lockout_seconds,
         )
     )
     uvicorn.run(app, host=s.api_host, port=s.api_port)

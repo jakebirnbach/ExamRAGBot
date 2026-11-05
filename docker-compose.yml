@@ -1,0 +1,37 @@
+# Production by default. To try it locally over plain HTTP, without AWS credentials:
+#   SITE_ADDRESS=http://localhost docker compose up --build
+# Secrets come from backend/.env, which is never copied into an image.
+services:
+  api:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      # Blank means the default AWS credential chain: the instance's role on EC2.
+      BEDROCK_AWS_PROFILE: ""
+      # Only Caddy can reach this container, and Caddy sets the client IP that the password
+      # lockout counts by. Caddy discards any X-Forwarded-For sent by the client.
+      FORWARDED_ALLOW_IPS: "*"
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-study.foxbet.ai}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      # Keeps the HTTPS certificate across restarts, so stopping the server doesn't
+      # request a new one each time.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,26 @@
+# A plain domain gets an automatic HTTPS certificate. For local testing, set
+# SITE_ADDRESS=http://localhost to serve plain HTTP instead.
+{$SITE_ADDRESS:study.foxbet.ai} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+	}
+
+	# The browser calls /api/*; the backend's routes have no /api prefix.
+	handle_path /api/* {
+		request_body {
+			max_size 256KB
+		}
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

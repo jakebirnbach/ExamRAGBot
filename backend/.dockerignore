@@ -1,0 +1,12 @@
+# Never let secrets into the image. Course materials live outside this folder anyway.
+.env
+.env.*
+
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.import_linter_cache/
+**/__pycache__/
+tests/
+eval/

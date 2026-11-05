@@ -6,6 +6,7 @@ models and network calls.
 
 import hmac
 import logging
+import math
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ from study_assistant.application.use_cases.generate_quiz import GenerateQuiz, Gr
 from study_assistant.application.use_cases.list_topics import ListTopics
 from study_assistant.domain.entities import MetadataFilter
 from study_assistant.domain.errors import StudyAssistantError
+from study_assistant.interfaces.api.login_throttle import FailedLoginThrottle
 from study_assistant.interfaces.api.schemas import (
     AskRequest,
     AskResponse,
@@ -43,27 +45,43 @@ class ApiDependencies:
     warm_up: Callable[[], None]
     """Runs once before the server accepts requests."""
     password: str
+    max_failed_logins: int = 10
+    lockout_seconds: int = 900
 
 
 def _to_filter(topics: list[str]) -> MetadataFilter | None:
     return MetadataFilter(topics=tuple(topics)) if topics else None
 
 
-def _password_gate(password: str) -> Callable[[HTTPAuthorizationCredentials | None], None]:
+def _password_gate(
+    password: str, throttle: FailedLoginThrottle
+) -> Callable[[Request, HTTPAuthorizationCredentials | None], None]:
     expected = password.encode()
 
     def check(
+        request: Request,
         credentials: Annotated[
             HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))
         ],
     ) -> None:
+        client = request.client.host if request.client else "unknown"
+        # Checked before the password, so a locked-out client can't keep guessing.
+        retry_after = throttle.retry_after(client)
+        if retry_after is not None:
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Too many wrong passwords. Try again in {math.ceil(retry_after / 60)} min.",
+                headers={"Retry-After": str(retry_after)},
+            )
         supplied = credentials.credentials.encode() if credentials else b""
         if not hmac.compare_digest(supplied, expected):
+            throttle.record_failure(client)
             raise HTTPException(
                 status.HTTP_401_UNAUTHORIZED,
                 detail="Wrong password.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        throttle.clear(client)
 
     return check
 
@@ -95,7 +113,8 @@ def build_api(deps: ApiDependencies) -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    protected = APIRouter(dependencies=[Depends(_password_gate(deps.password))])
+    throttle = FailedLoginThrottle(deps.max_failed_logins, deps.lockout_seconds)
+    protected = APIRouter(dependencies=[Depends(_password_gate(deps.password, throttle))])
 
     @protected.get("/topics")
     def topics() -> TopicsResponse:

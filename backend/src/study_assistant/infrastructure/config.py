@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     """Required by the API server, which won't start without it."""
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8000, ge=1, le=65535)
+    api_max_failed_logins: int = Field(default=10, ge=1)
+    """Wrong passwords allowed from one client within the window before it's locked out."""
+    api_lockout_seconds: int = Field(default=900, ge=1)
+    """The window starts at a client's first wrong password; a lockout lasts until it ends."""
 
     @field_validator("bedrock_model_id", "bedrock_aws_profile", mode="before")
     @classmethod

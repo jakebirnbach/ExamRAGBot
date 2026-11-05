@@ -10,7 +10,7 @@ A personal study assistant for a master's student in Health & Wellness. It answe
 - **LLM:** Claude Haiku 4.5 via AWS Bedrock's Converse API (boto3), the default (`BEDROCK_API=converse`). Haiku 5.5 isn't enabled on this AWS account; an Anthropic SDK Bedrock adapter (`anthropic[bedrock]`, `BEDROCK_API=messages`) is kept ready for it (see the bedrock-llm skill).
 - **Parsing:** PyMuPDF for PDFs (add python-pptx / python-docx only if needed)
 - **Frontend (TypeScript):** React + Vite, strict TS, talks to the FastAPI backend over JSON
-- **Deployment (later phase):** Docker, AWS App Runner or EC2, secrets in env vars / Secrets Manager
+- **Deployment:** Docker Compose (API + Caddy) on one EC2 instance at `study.foxbet.ai`, secrets in env vars / Secrets Manager. App Runner is out: AWS closed it to new customers on 2026-04-30.
 - **No LangChain yet.** The pipeline is built by hand first; a LangChain version comes in a later phase.
 
 ## Architecture — Clean Architecture, dependencies point inward only
@@ -82,12 +82,18 @@ frontend/
 
 ## API + frontend (phase 5)
 - Run it: `uv run study-assistant-api` in `backend/` (port 8000), `npm run dev` in `frontend/` (Vite proxies `/api` to the API, so no CORS). The server warms both models before accepting requests (about 15 s) and refuses to start without `API_PASSWORD`.
-- Password gate: `Authorization: Bearer <password>` on every route except `/health`. The browser keeps it in `sessionStorage`. There's no rate limiting yet; add it before exposing the API publicly.
+- Password gate: `Authorization: Bearer <password>` on every route except `/health`. The browser keeps it in `sessionStorage`. After `API_MAX_FAILED_LOGINS` wrong passwords in `API_LOCKOUT_SECONDS`, that client IP gets 429s, even with the right password, until the window ends. The count is in memory, so a restart clears it.
 - Quiz is stateless: `POST /quiz` returns the question and reference answer, the client hides the answer until graded, and `POST /quiz/grade` gets all three back. Acceptable because there's one trusted user.
 - `VectorStore.sample` picks quiz material by querying with a random vector (Pinecone has no random read). The model chooses the most testable of 4 sampled chunks, or skips them all and gets one fresh draw.
 - Each `/ask` is independent, with no conversation memory; the UI says so.
 - Every `/ask` also sends the model the module list (all topics, regardless of the topic filter), so study-planning answers can name real modules. It has names only, no exam weighting, so the prompt makes any ordering the model's own suggestion.
 - Model adapters hold a lock around inference, because routes run in a thread pool and fast tokenizers aren't thread-safe. One request at a time per model is fine for one user.
+
+## Deployment (phase 6, in progress)
+- `docker-compose.yml` runs `api` (`backend/Dockerfile`, both models built into the image, `HF_HUB_OFFLINE=1`) and `web` (`frontend/Dockerfile`: Caddy serves the built app, handles HTTPS, and strips `/api` before forwarding to `api`). Same origin, so still no CORS.
+- Try it locally without AWS credentials: `SITE_ADDRESS=http://localhost docker compose up --build`. `BEDROCK_AWS_PROFILE` is forced blank in the container, so Bedrock calls fail (502) rather than bill unless a role is available.
+- The instance only runs when the user turns it on: `scripts/server.sh start|stop|status`. It passes its own profile (`exam-rag-ops`) and region because the shell's `AWS_*` variables point elsewhere. Only the user starts it; the student doesn't.
+- `FORWARDED_ALLOW_IPS=*` is safe only because `api` isn't published and Caddy is its only client. The password lockout counts by the IP this produces, so never publish port 8000.
 
 ## Build phases
 1. **Scaffold** the folder structure, tooling (uv, ruff, mypy, pytest, import-linter), domain entities and ports, and in-memory fakes for tests.

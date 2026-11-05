@@ -98,6 +98,37 @@ def test_every_route_needs_the_password(
     assert harness.llm.calls == []
 
 
+def _guess_wrong(client: TestClient, times: int = 10) -> None:
+    for _ in range(times):
+        assert client.get("/topics", headers={"Authorization": "Bearer no"}).status_code == 401
+
+
+def test_too_many_wrong_passwords_lock_out_even_the_right_one(client: TestClient) -> None:
+    _guess_wrong(client)
+    response = client.get("/topics", headers=AUTH)
+    assert response.status_code == 429
+    assert int(response.headers["Retry-After"]) > 0
+    assert "Too many wrong passwords" in response.json()["detail"]
+
+
+def test_lockout_applies_per_client(harness: Harness, client: TestClient) -> None:
+    _guess_wrong(client)
+    other = TestClient(harness.app, client=("203.0.113.9", 50000))
+    assert other.get("/topics", headers=AUTH).status_code == 200
+
+
+def test_right_password_resets_the_count(client: TestClient) -> None:
+    _guess_wrong(client, times=9)
+    assert client.get("/topics", headers=AUTH).status_code == 200
+    _guess_wrong(client, times=9)
+    assert client.get("/topics", headers=AUTH).status_code == 200
+
+
+def test_health_stays_open_during_a_lockout(client: TestClient) -> None:
+    _guess_wrong(client)
+    assert client.get("/health").status_code == 200
+
+
 @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
 def test_docs_are_not_exposed(client: TestClient, path: str) -> None:
     assert client.get(path).status_code == 404
