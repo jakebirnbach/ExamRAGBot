@@ -63,7 +63,7 @@ frontend/
 ## Behavior requirements
 - Every chunk stores metadata: source file, page, topic/lecture (if derivable), chunk index.
 - Answers cite sources (file + page) for anything from the course materials. The assistant also answers general questions (study planning, general health, anything else) from the model's own knowledge, and must keep that distinguishable: no citations, labelled in the UI (`grounded: false`), or marked in the sentence when mixed into a course answer. Quiz questions and reference answers stay course-only.
-- Retrieval: hybrid search top ~20, rerank to top ~5.
+- Retrieval: hybrid search top ~20, rerank to top ~5. **The deployed server runs with `RERANK_ENABLED=false`**, by the user's decision: on its single physical CPU core, reranking 20 candidates took over two minutes. Without reranking the eval scores hit@5 97.6% vs 100% (hit@1 81% vs 76%). Local runs and the eval still rerank.
 - Topic filtering via Pinecone metadata filters.
 - Simple password gate on the API for the deployed version.
 
@@ -93,6 +93,7 @@ frontend/
 - `docker-compose.yml` runs `api` (`backend/Dockerfile`, both models built into the image, `HF_HUB_OFFLINE=1`) and `web` (`frontend/Dockerfile`: Caddy serves the built app, handles HTTPS, and strips `/api` before forwarding to `api`). Same origin, so still no CORS.
 - Try it locally without AWS credentials: `SITE_ADDRESS=http://localhost docker compose up --build`. `BEDROCK_AWS_PROFILE` is forced blank in the container, so Bedrock calls fail (502) rather than bill unless a role is available.
 - The instance only runs when the user turns it on: `scripts/server.sh start|stop|status`. It passes its own profile (`exam-rag-ops`) and region because the shell's `AWS_*` variables point elsewhere. Only the user starts it; the student doesn't.
+- AWS setup is `deploy/provision.sh` (rerunnable, admin profile, never root) and `deploy/user-data.sh` (first boot: Docker, 8-hour auto-stop, the host's own read-only GitHub deploy key). Instance `study-assistant` (t3.large, us-east-1a, Elastic IP 18.215.81.240), role `study-assistant-instance` (Bedrock Haiku invoke + read `/study-assistant/*` only). Server settings live in the SSM SecureString `/study-assistant/env`; `deploy/deploy-on-host.sh` pulls `main`, writes them to `backend/.env` and rebuilds. Run it over SSM (`AWS-RunShellScript` runs `sh`, so no `pipefail` in inline commands).
 - `FORWARDED_ALLOW_IPS=*` is safe only because `api` isn't published and Caddy is its only client. The password lockout counts by the IP this produces, so never publish port 8000.
 
 ## Build phases

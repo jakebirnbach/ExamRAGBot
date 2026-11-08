@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Reranking
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     reranker_batch_size: int = Field(default=16, ge=1)
+    rerank_enabled: bool = True
+    """Off on the EC2 server: one physical CPU core takes about 7 s per candidate there, so
+    reranking 20 took over two minutes. Without it the eval scores hit@5 97.6% vs 100%."""
 
     # Retrieval
     retrieval_top_k: int = Field(default=20, ge=1)

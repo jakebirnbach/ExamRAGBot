@@ -103,7 +103,7 @@ class Container:
         return RetrieveContext(
             self.embedder,
             self.store,
-            self.reranker,
+            self.reranker if s.rerank_enabled else None,
             top_k=s.retrieval_top_k,
             top_n=s.rerank_top_n,
             max_per_source=s.max_chunks_per_source,
@@ -127,11 +127,13 @@ class Container:
         return GradeAnswer(self.llm)
 
     def load_models(self) -> None:
-        """Load both local models, downloading them if needed. The Docker build uses this to put
-        exactly the files the app reads into the image."""
+        """Load the local models, downloading them if needed. The Docker build uses this to put
+        exactly the files the app reads into the image; the build leaves reranking on, so the
+        image always has the reranker and turning it back on is a config change."""
         self.embedder.embed_query("warm up")
-        sample = ScoredChunk(Chunk("warm-up", "warm up", ChunkMetadata("warm-up", 1, 0)), 0.0)
-        self.reranker.rerank("warm up", [sample], top_n=1)
+        if self.settings.rerank_enabled:
+            sample = ScoredChunk(Chunk("warm-up", "warm up", ChunkMetadata("warm-up", 1, 0)), 0.0)
+            self.reranker.rerank("warm up", [sample], top_n=1)
 
     def warm_up(self) -> None:
         """Load both models and open the index, so a server's first request isn't slow. No LLM

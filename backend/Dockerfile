@@ -18,18 +18,24 @@ USER app
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-COPY src ./src
-RUN uv sync --frozen --no-dev
-
-# BGE-M3's repo includes a 2.2 GB ONNX export the app never loads. Leave it: with files missing,
-# the offline loader raises IncompleteSnapshotError and the server won't start.
-RUN python -c "from study_assistant.infrastructure.config import get_settings; \
-from study_assistant.main import Container; \
-Container(get_settings()).load_models()"
+# Download the models before copying the code, so a code change doesn't download 6 GB again.
+# Full snapshots, as the loaders expect: with files missing (BGE-M3's unused 2.2 GB ONNX export,
+# say), the offline loader raises IncompleteSnapshotError and the server won't start.
+# Keep these names in step with EMBEDDING_MODEL / RERANKER_MODEL in config.py.
+RUN python -c "from huggingface_hub import snapshot_download; \
+snapshot_download('BAAI/bge-m3'); snapshot_download('BAAI/bge-reranker-v2-m3')"
 
 # From here on, a missing model file is an error rather than a surprise download.
 ENV HF_HUB_OFFLINE=1 \
     API_HOST=0.0.0.0
+
+COPY src ./src
+RUN uv sync --frozen --no-dev
+
+# Load both models offline, exactly as the app does, so a missing file fails the build.
+RUN python -c "from study_assistant.infrastructure.config import get_settings; \
+from study_assistant.main import Container; \
+Container(get_settings()).load_models()"
 
 EXPOSE 8000
 
