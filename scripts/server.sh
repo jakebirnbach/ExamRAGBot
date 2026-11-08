@@ -4,6 +4,7 @@
 #   scripts/server.sh start    start it and wait until the app is ready
 #   scripts/server.sh stop     stop it (compute billing stops; disk and IP charges continue)
 #   scripts/server.sh status   show whether it's running and the app is healthy
+#   scripts/server.sh deploy   rebuild and restart it from what's pushed to main (start it first)
 #
 # Always passes its own profile and region: the shell's AWS_PROFILE and AWS_REGION point elsewhere.
 set -euo pipefail
@@ -14,8 +15,15 @@ INSTANCE_NAME="${STUDY_INSTANCE_NAME:-study-assistant}"
 SITE_URL="${STUDY_SITE_URL:-https://study.foxbet.ai}"
 READY_TIMEOUT_SECONDS="${STUDY_READY_TIMEOUT_SECONDS:-300}"
 
+DEPLOY_DOCUMENT="${STUDY_DEPLOY_DOCUMENT:-study-assistant-deploy}"
+DEPLOY_TIMEOUT_SECONDS="${STUDY_DEPLOY_TIMEOUT_SECONDS:-3000}"
+
 aws_ec2() {
   aws ec2 "$@" --profile "$PROFILE" --region "$REGION"
+}
+
+aws_ssm() {
+  aws ssm "$@" --profile "$PROFILE" --region "$REGION"
 }
 
 instance_id() {
@@ -96,10 +104,63 @@ status() {
   fi
 }
 
+deploy() {
+  local id state command_id status waited=0
+  id="$(instance_id)"
+  state="$(instance_state "$id")"
+  if [[ "$state" != "running" ]]; then
+    echo "The instance is $state. Run: $0 start" >&2
+    exit 1
+  fi
+  until [[ "$(aws_ssm describe-instance-information --filters "Key=InstanceIds,Values=$id" \
+    --query 'InstanceInformationList[0].PingStatus' --output text)" == "Online" ]]; do
+    if ((waited >= 120)); then
+      echo "The server isn't accepting commands yet. Try again in a minute." >&2
+      exit 1
+    fi
+    sleep 5
+    waited=$((waited + 5))
+  done
+
+  command_id="$(aws_ssm send-command --instance-ids "$id" --document-name "$DEPLOY_DOCUMENT" \
+    --comment "scripts/server.sh deploy" --query Command.CommandId --output text)"
+  echo "Deploying (a rebuild takes a few minutes; longer if dependencies changed)..."
+  waited=0
+  while true; do
+    status="$(aws_ssm get-command-invocation --command-id "$command_id" --instance-id "$id" \
+      --query Status --output text 2>/dev/null || echo Pending)"
+    case "$status" in
+      Pending | InProgress | Delayed) ;;
+      *) break ;;
+    esac
+    if ((waited >= DEPLOY_TIMEOUT_SECONDS)); then
+      echo "Still running after ${waited}s; check later with: $0 status" >&2
+      exit 1
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
+
+  aws_ssm get-command-invocation --command-id "$command_id" --instance-id "$id" \
+    --query StandardOutputContent --output text
+  if [[ "$status" != "Success" ]]; then
+    aws_ssm get-command-invocation --command-id "$command_id" --instance-id "$id" \
+      --query StandardErrorContent --output text >&2
+    echo "Deploy $status. The previous version is still running unless the log says otherwise." >&2
+    exit 1
+  fi
+  if app_is_healthy; then
+    echo "Deployed: $SITE_URL"
+  else
+    echo "Deployed, but $SITE_URL/api/health isn't answering yet." >&2
+    exit 1
+  fi
+}
+
 case "${1:-}" in
-  start | stop | status) "$1" ;;
+  start | stop | status | deploy) "$1" ;;
   *)
-    echo "Usage: $0 {start|stop|status}" >&2
+    echo "Usage: $0 {start|stop|status|deploy}" >&2
     exit 2
     ;;
 esac

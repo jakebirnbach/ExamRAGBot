@@ -114,13 +114,42 @@ echo "Elastic IP: $IP"
 if ! a iam get-user --user-name "$OPS_USER" >/dev/null 2>&1; then
   a iam create-user --user-name "$OPS_USER" >/dev/null
 fi
-a iam put-user-policy --user-name "$OPS_USER" --policy-name start-stop-study-assistant --policy-document "{
+# ---------------------------------------------------------------- deploy command (scripts/server.sh deploy)
+DOC="$NAME-deploy"
+if a ssm describe-document --name "$DOC" >/dev/null 2>&1; then
+  # shellcheck disable=SC2016 # $LATEST is SSM's literal version name, not a shell variable
+  VERSION="$(a ssm update-document --name "$DOC" --document-version '$LATEST' \
+    --content "file://$DEPLOY_DIR/ssm-deploy-document.json" \
+    --query DocumentDescription.DocumentVersion --output text 2>/dev/null || true)"
+  if [[ -n "$VERSION" ]]; then
+    a ssm update-document-default-version --name "$DOC" --document-version "$VERSION" >/dev/null
+  fi
+else
+  a ssm create-document --name "$DOC" --document-type Command --document-format JSON \
+    --content "file://$DEPLOY_DIR/ssm-deploy-document.json" >/dev/null
+fi
+echo "Deploy document: $DOC"
+
+# Start, stop and deploy this one instance, and nothing else. The deploy document takes no
+# parameters, so this can't run arbitrary commands on the server.
+a iam delete-user-policy --user-name "$OPS_USER" --policy-name start-stop-study-assistant \
+  >/dev/null 2>&1 || true
+a iam put-user-policy --user-name "$OPS_USER" --policy-name operate-study-assistant --policy-document "{
   \"Version\": \"2012-10-17\",
   \"Statement\": [
     {\"Effect\": \"Allow\",
      \"Action\": [\"ec2:StartInstances\", \"ec2:StopInstances\"],
      \"Resource\": \"arn:aws:ec2:$REGION:$ACCOUNT:instance/$INSTANCE\"},
-    {\"Effect\": \"Allow\", \"Action\": \"ec2:DescribeInstances\", \"Resource\": \"*\"}
+    {\"Effect\": \"Allow\",
+     \"Action\": \"ssm:SendCommand\",
+     \"Resource\": [
+       \"arn:aws:ec2:$REGION:$ACCOUNT:instance/$INSTANCE\",
+       \"arn:aws:ssm:$REGION:$ACCOUNT:document/$DOC\"
+     ]},
+    {\"Effect\": \"Allow\",
+     \"Action\": [\"ec2:DescribeInstances\", \"ssm:GetCommandInvocation\",
+                \"ssm:DescribeInstanceInformation\"],
+     \"Resource\": \"*\"}
   ]
 }"
 if ! aws configure list-profiles | grep -qx "$OPS_USER"; then

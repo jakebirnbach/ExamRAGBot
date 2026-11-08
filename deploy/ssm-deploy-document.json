@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Deploy the study assistant: pull main, write the settings, rebuild and restart. Takes no parameters, so whoever may run it can only deploy.",
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "deploy",
+      "inputs": {
+        "timeoutSeconds": "3000",
+        "runCommand": [
+          "set -eu",
+          "export HOME=/root",
+          "cd /opt/study-assistant",
+          "git fetch origin main",
+          "git reset --hard origin/main",
+          "bash deploy/deploy-on-host.sh"
+        ]
+      }
+    }
+  ]
+}
